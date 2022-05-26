@@ -1,9 +1,18 @@
 from random import choice
-from typing import Set
+from typing import Set, Optional, List
 import os
-
 import argparse
-from termcolor import colored
+from greedy import GreedyAlgorithm
+
+import pandas as pd
+
+from wordlealgorithm import WordleAlgorithm, ManualAlgorithm
+from gameinfo import (
+    Letter,
+    RejectedLetter,
+    AcceptedLetterCorrectPosition,
+    AcceptedLetterWrongPosition,
+)
 
 
 class IncorrectWord(ValueError):
@@ -18,82 +27,107 @@ def parse_args():
         default="./five_letter_words.csv",
         help="path to file with all possible words",
     )
+    parser.add_argument(
+        "--algorithm",
+        help="""Algorithm to run. 
+        Default: Manual""",
+    )
     return parser.parse_args()
 
 
 def load_possible_words(words_path: str) -> set:
-    with open(words_path, encoding="cp1251") as f:
-        words = f.read().splitlines()
-    return set(words[1:])
+    return pd.read_csv("./five_letter_words.csv", encoding="cp1251")
 
 
 def clear_screen():
     os.system("cls" if os.name == "nt" else "clear")
 
 
-def print_instruction():
-    wrong_letter = colored("а", "white", "on_grey")
-    correct_letter_wrong_position = colored("б", attrs=["reverse"])
-    correct_letter_correct_position = colored("в", "yellow", attrs=["reverse"])
+class GameState:
+    def __init__(self, correct_word: str) -> None:
+        self.correct_word = correct_word
+        self.guesses: List[List[Letter]] = []
 
-    print("На каждом ходу вы совершаете догадку, вводя слово из 5 букв.")
-    print("В ответ вы получаете слово закодированную цветом информацию:")
-    print(f"{wrong_letter} - не угадана буква;", end=", ")
-    print(f"{correct_letter_wrong_position} - угадана буква, но не позиция;", end=", ")
-    print(
-        f"{correct_letter_correct_position} - угадана буква и позиция.",
-    )
-    input("Нажмите Enter, чтобы начать!")
+    def classify_letter(self, letter: str, position: int) -> Letter:
+        for letter_type in (
+            RejectedLetter,
+            AcceptedLetterWrongPosition,
+            AcceptedLetterCorrectPosition,
+        ):
+            if letter_type.classify(letter, position, self.correct_word):
+                return letter_type(letter, position)
+
+    def add_guess(self, guess: str) -> None:
+        self.guesses.append([self.classify_letter(l, i) for i, l in enumerate(guess)])
+
+    def print_tabloid(self) -> None:
+        clear_screen()
+        if not self.guesses:
+            return
+        for guess in self.guesses:
+            print(*guess, sep="")
+
+    @property
+    def game_info(self) -> List[Letter]:
+        return [letter for guess in self.guesses for letter in guess]
+
+    @property
+    def number_of_attempts(self) -> int:
+        return len(self.guesses)
 
 
-def color_letters(guess: str, correct_word):
-    letters = []
-    for i, letter in enumerate(guess):
-        if letter not in correct_word:
-            letters.append(colored(letter, "white", "on_grey"))
-        elif correct_word[i] == letter:
-            letters.append(colored(letter, "yellow", attrs=["reverse"]))
-        else:
-            letters.append(colored(letter, attrs=["reverse"]))
-    return "".join(letters)
-
-
-def play_game(correct_word: str, possible_words: Set[str]):
-    tabloid = []
-    print_instruction()
+def play_game(
+    correct_word: str,
+    possible_words: pd.DataFrame,
+    guesser: Optional[WordleAlgorithm] = None,
+):
+    if guesser is None:
+        guesser = ManualAlgorithm(possible_words)
+    game_state = GameState(correct_word)
     guess = ""
     while True:
-        clear_screen()
-        if tabloid:
-            print(*tabloid, sep="\n")
-        if guess == correct_word:
-            attempts = len(tabloid)
-            print(f"Поздравляю, вы угадали слово {correct_word} за {attempts} попыток!")
-            break
-
-        guess = input().strip().lower()
+        game_state.print_tabloid()
+        guess = guesser.guess(game_state.game_info)
+        print(guess)
         if guess == "":
             break
-        if guess not in possible_words:
-            print("Вы загадали слово, которого нет в нашей таблице.")
-            continue
 
-        colored_guess = color_letters(guess, correct_word)
-        tabloid.append(colored_guess)
+        if guess not in possible_words["word"].to_list():
+            if not isinstance(guesser, ManualAlgorithm):
+                raise IncorrectWord(
+                    f"Автоматический алгоритм выдал слово, которого нет в таблице: {guess}"
+                )
+            continue
+        game_state.add_guess(guess)
+
+        if guess == correct_word:
+            game_state.print_tabloid()
+            print(
+                f"Поздравляю, вы угадали слово {correct_word} за {game_state.number_of_attempts} попыток!"
+            )
+            break
 
     print("Выход.")
 
 
 def main():
     args = parse_args()
-    possible_words: Set[str] = load_possible_words(args.possible_words)
+
+    possible_words: pd.DataFrame = load_possible_words(args.possible_words)
     correct_word: str = (
-        choice(list(possible_words)) if args.correct_word is None else args.correct_word
+        choice(possible_words["word"])
+        if args.correct_word is None
+        else args.correct_word
     )
     correct_word = correct_word.lower()
-    if correct_word not in possible_words:
+    if correct_word not in possible_words["word"].to_list():
         raise IncorrectWord("Вы загадали слово, которого нет в нашей таблице.")
-    play_game(correct_word, possible_words)
+
+    algorithm = args.algorithm
+    if algorithm == "greedy":
+        algorithm = GreedyAlgorithm(possible_words)
+
+    play_game(correct_word, possible_words, algorithm)
 
 
 if __name__ == "__main__":

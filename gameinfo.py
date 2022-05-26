@@ -1,88 +1,116 @@
 from abc import abstractmethod, ABC
 from re import A
-from typing import Optional, Any
+from typing import Optional, Any, List
 
-from colorama import Fore, Style, init
-
-init(autoreset=True)
-
-green_font = Fore.GREEN
-red_font = Fore.RED
-yellow_font = Fore.YELLOW
-reset_style = Style.RESET_ALL
-
-russian_alphabet = "абвгдежзийклмнопрстуфхшщчцьыъэюя"
+from termcolor import colored
 
 
 class InputError(ValueError):
     pass
 
 
-def colorcode(x: Any, color: Fore) -> str:
-    return f"{color}{x}{reset_style}"
-
-
 class Letter(ABC):
-    def __init__(self, letter: str):
+    russian_alphabet = "абвгдежзийклмнопрстуфхшщчцьыъэюя"
+
+    def __init__(self, letter: str, position: int = 0) -> None:
         letter = letter.lower()
-        if letter not in russian_alphabet:
-            wrong_letter = colorcode(letter, red_font)
+        if letter not in Letter.russian_alphabet:
+            wrong_letter = colored(letter, "red")
             raise InputError(
                 f'Буква должна быть из русского алфавита, не включая "ё". Вы ввели "{wrong_letter}".'
             )
         self.letter = letter
+        self.position = position
 
     @abstractmethod
     def filter(self, word: str) -> bool:
         pass
 
     @abstractmethod
-    def __str__(self):
+    def __str__(self) -> str:
+        pass
+
+    def __eq__(self, other) -> bool:
+        if not isinstance(other, Letter):
+            return NotImplemented
+        if type(self) != type(other):
+            return False
+        if self.letter != other.letter:
+            return False
+        if self.position != other.position:
+            return False
+        return True
+
+    @abstractmethod
+    def description(self) -> str:
+        pass
+
+    @staticmethod
+    @abstractmethod
+    def classify(letter: str, position: int, word: str) -> bool:
         pass
 
 
 class RejectedLetter(Letter):
-    def filter(self, word: str) -> bool:
+    def filter(self, word: str, position: int = 0) -> bool:
         if self.letter in word:
             return False
         return True
 
-    def __str__(self):
-        return f'Буквы "{colorcode(self.letter, red_font)}" нет в слове.'
+    def __str__(self) -> str:
+        return self.letter.upper()
+
+    def description(self) -> str:
+        colored_letter = colored(self.letter, "red")
+        return f'Буквы "{colored_letter}" нет в слове.'
+
+    @staticmethod
+    def classify(letter: str, position: int, word: str) -> bool:
+        return False if letter in word else True
 
 
 class AcceptedLetterWrongPosition(Letter):
-    def __init__(self, letter: str, wrong_position: int):
-        super().__init__(letter)
-        self.wrong_position = wrong_position
+    def __str__(self) -> str:
+        return colored(self.letter.upper(), attrs=["reverse"])
 
     def filter(self, word: str) -> bool:
         if self.letter not in word:
             return False
-        if word[self.wrong_position - 1] == self.letter:
+        if word[self.position] == self.letter:
             return False
         return True
 
-    def __str__(self):
-        letter = colorcode(self.letter, yellow_font)
-        position = colorcode(self.wrong_position, yellow_font)
-        return f'Буква "{letter}" есть в слове, но не на {position}-й позиции.'
+    def description(self) -> str:
+        colored_letter = colored(self.letter, "yellow")
+        colored_position = colored(self.position, "yellow")
+        return f'Буква "{colored_letter}" есть в слове, но не на {colored_position}-й позиции.'
+
+    @staticmethod
+    def classify(letter: str, position: int, word: str) -> bool:
+        if letter not in word:
+            return False
+        if word[position] == letter:
+            return False
+        return True
 
 
 class AcceptedLetterCorrectPosition(Letter):
-    def __init__(self, letter: str, correct_position: int):
-        super().__init__(letter)
-        self.correct_position = correct_position
+    def __str__(self) -> str:
+        return colored(self.letter.upper(), "yellow", attrs=["reverse"])
 
     def filter(self, word: str) -> bool:
-        if word[self.correct_position - 1] != self.letter:
+        if word[self.position] != self.letter:
             return False
         return True
 
-    def __str__(self):
-        letter = colorcode(self.letter, green_font)
-        position = colorcode(self.correct_position, green_font)
-        return f'Буква "{letter}" есть в слове на {position}-й позиции.'
+    def description(self) -> str:
+        colored_letter = colored(self.letter, "green")
+        colored_position = colored(self.position, "greed")
+        return f'Буква "{colored_letter}" есть в слове на {colored_position}-й позиции.'
+
+    @staticmethod
+    def classify(letter: str, position: int, word: str) -> bool:
+        return True if word[position] == letter else False
 
 
 def parse_info() -> Optional[Letter]:
