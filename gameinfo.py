@@ -76,7 +76,7 @@ class AcceptedLetterWrongPosition(Letter):
     def filter(self, word: str) -> bool:
         if self.letter not in word:
             return False
-        if word[self.position] == self.letter:
+        if word[self.position - 1] == self.letter:
             return False
         return True
 
@@ -99,7 +99,7 @@ class AcceptedLetterCorrectPosition(Letter):
         return colored(self.letter.upper(), "yellow", attrs=["reverse"])
 
     def filter(self, word: str) -> bool:
-        if word[self.position] != self.letter:
+        if word[self.position - 1] != self.letter:
             return False
         return True
 
