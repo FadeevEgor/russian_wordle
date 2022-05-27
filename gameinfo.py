@@ -105,7 +105,7 @@ class AcceptedLetterCorrectPosition(Letter):
 
     def description(self) -> str:
         colored_letter = colored(self.letter, "green")
-        colored_position = colored(self.position, "greed")
+        colored_position = colored(self.position, "green")
         return f'Буква "{colored_letter}" есть в слове на {colored_position}-й позиции.'
 
     @staticmethod

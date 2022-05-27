@@ -55,7 +55,7 @@ class GameState:
             AcceptedLetterCorrectPosition,
         ):
             if letter_type.classify(letter, position, self.correct_word):
-                return letter_type(letter, position)
+                return letter_type(letter, position + 1)
 
     def add_guess(self, guess: str) -> None:
         self.guesses.append([self.classify_letter(l, i) for i, l in enumerate(guess)])
