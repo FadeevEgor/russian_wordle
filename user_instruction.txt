@@ -1,0 +1,6 @@
+Type in new information in the form 
+'letter1 code1 letter2 code2 ... letterN codeN'
+- code = 1...5 - position of the letter in the word, if the exact position is guessed;
+- code = 0, if the letter is absent in the word;
+- code = -5...-1. If the letter is guessed, but the position is wrong, the code is negation of the position."
+The only accepted separator is space. Empty line to exit.

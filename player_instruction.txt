@@ -1,0 +1,3 @@
+On each turn, you make a guess by typing in a word consisting of five letters.
+As a response you get information encoded as follows:
+$a - the letter isn't guessed, $b - the letter is guessed, but not in the right position, $c - both letter and position are correct.

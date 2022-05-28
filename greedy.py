@@ -1,26 +1,28 @@
 from functools import partial
-import os
+from sqlite3 import adapt
 from typing import List
-from argparse import ArgumentParser
+from argparse import ArgumentParser, Namespace
 from collections import Counter
 
 import pandas as pd
-from gameinfo import Letter, InputError, parse_info
+
+from gameinfo import Letter, filter_impossible_words, load_possible_words
 from wordlealgorithm import WordleAlgorithm
+from interaction import interact
 
 
-def parse_args():
+def parse_args() -> Namespace:
     parser = ArgumentParser()
     parser.add_argument(
-        "--update_frequencies",
-        default=False,
+        "--adapt",
+        default=True,
         type=bool,
-        help="whether to update frequencies on each step or not.",
+        help="boolean value defining whether to recalculate frequency of letters on each step",
     )
     parser.add_argument(
-        "--words",
+        "--t",
         default="./five_letter_words.csv",
-        help="path to file with all possible words",
+        help="path to the table with all possible words",
     )
     parser.add_argument(
         "--n", type=int, default=15, help="number of words to show on each iteration"
@@ -28,11 +30,11 @@ def parse_args():
     return parser.parse_args()
 
 
-def load_possible_words(words_path: str) -> pd.DataFrame:
-    return pd.read_csv(words_path, encoding="cp1251")
-
-
 def add_frequency_column(words: pd.DataFrame) -> pd.DataFrame:
+    """
+    for each word in the table computes total frequency of letters
+    and adds corresponding column to the table
+    """
     letter_frequencies = compute_frequencies_of_letters(words["word"])
     f = partial(total_frequency_of_word, letter_frequencies=letter_frequencies)
     words["frequency"] = words["word"].map(f)
@@ -40,11 +42,18 @@ def add_frequency_column(words: pd.DataFrame) -> pd.DataFrame:
 
 
 def total_frequency_of_word(word: str, letter_frequencies: pd.Series) -> float:
+    """
+    computes total frequency of letters in the word
+    """
     unique_letters = set(word)
     return sum(letter_frequencies.loc[letter] for letter in unique_letters)
 
 
 def compute_frequencies_of_letters(words: pd.Series) -> pd.Series:
+    """
+    computes frequencies of each letter in the table of words
+    and returns this as pandas.Series
+    """
     letter_counter = Counter()
     for word in words:
         letter_counter.update(word)
@@ -52,69 +61,47 @@ def compute_frequencies_of_letters(words: pd.Series) -> pd.Series:
     return letter_frequencies / letter_frequencies.sum()
 
 
-def print_instruction():
-    print("Введи новую полученную информацию в формате 'буква код'.")
-    print(
-        "- код = 1...5 - порядковый номер буквы в слове, если угадано точное положение буквы;"
-    )
-    print("- код = 0, если буквы в слове нет;")
-    print(
-        "- код = -5...-1, если угадана буква, но не её позиция, то позиция указывается с отрицательным знаком."
-    )
-    print("Пустая строка, чтобы выйти.")
-
-
 class GreedyAlgorithm(WordleAlgorithm):
-    def __init__(self, words: pd.DataFrame, update_frequencies: bool = True) -> None:
-        self.words = add_frequency_column(words.copy())
-        self.update_frequencies = update_frequencies
+    """
+    Greedy algorithm which values a word based on frequencies of letters
+    the word consists of: the more total frequency of letter in the word
+    the better the guess. Frequency of a letter is computed based on the
+    table of all possible five letter words. Algorithm can work in adap-
+    tive mode in which it recompute letter frequencies each time a new
+    information has come.
+    """
 
-    def k_guesses(self, info: List[Letter], k: int = 15) -> pd.DataFrame:
-        for letter in info:
-            mask = self.words["word"].map(letter.filter)
-            self.words = self.words[mask]
-        if self.update_frequencies:
-            self.words = add_frequency_column(self.words)
-        return self.words.head(k)
+    def __init__(self, possible_words: pd.DataFrame, adapt: bool = True) -> None:
+        super().__init__(add_frequency_column(possible_words.copy()))
+        self.adapt = adapt
+
+    def rank_guesses(self, info: List[Letter]) -> pd.DataFrame:
+        """
+        ranks all possible words on the basis of total frequencies of
+        letters in a words and return it in the form of table.
+        """
+        words = filter_impossible_words(self.possible_words, info)
+        if self.adapt:
+            words = add_frequency_column(words)
+        self.possible_words = words.sort_values("frequency", ascending=False)
+        return self.possible_words
 
     def guess(self, info: List[Letter]) -> str:
-        for letter in info:
-            mask = self.words["word"].map(letter.filter)
-            self.words = self.words[mask]
-        if self.update_frequencies:
-            self.words = add_frequency_column(self.words)
-        return self.words["word"].iloc[0]
+        """
+        computes and returns the word with biggest total frequencies of
+        letters.
+        """
+        self.possible_words = filter_impossible_words(self.possible_words, info)
+        if self.adapt:
+            self.possible_words = add_frequency_column(self.possible_words)
+        return self.possible_words["word"].iloc[0]
 
 
 def main():
     args = parse_args()
-    words_to_show: int = args.n
-    update_frequencies = args.update_frequencies
-    words_path: str = args.words
-
-    words: pd.DataFrame = load_possible_words(words_path)
-    guesser = GreedyAlgorithm(words, update_frequencies)
-    info: list[Letter] = []
-    while True:
-        print("=" * 80)
-        top_k_guesses = guesser.k_guesses(info, words_to_show)
-        print(
-            f"Вот список {words_to_show} лучших слов из {len(guesser.words)} возможных."
-        )
-        print(top_k_guesses.to_string(index=False))
-        print_instruction()
-        try:
-            letter = parse_info()
-        except InputError as msg:
-            print(msg)
-            continue
-        if letter is None:
-            break
-
-        print(letter.description())
-        info.append(letter)
-
-    print("Выход.")
+    possible_words = load_possible_words(path=args.t)
+    guesser = GreedyAlgorithm(possible_words=possible_words, adapt=adapt)
+    interact(guesser, words_to_show=args.n)
 
 
 if __name__ == "__main__":

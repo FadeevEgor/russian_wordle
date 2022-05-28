@@ -1,11 +1,14 @@
 from abc import ABC, abstractmethod
+from typing import List
+from string import Template
+
 from gameinfo import (
     Letter,
     RejectedLetter,
     AcceptedLetterWrongPosition,
     AcceptedLetterCorrectPosition,
+    filter_impossible_words,
 )
-from typing import List, Set
 
 import pandas as pd
 
@@ -15,32 +18,45 @@ class IncorrectWordError:
 
 
 class WordleAlgorithm(ABC):
+    """
+    Abstract base class for an wordle algorithm.
+    Should be able to make a guess based on words possible and information gained.
+    """
+
+    def __init__(self, possible_words: pd.DataFrame) -> None:
+        self.possible_words = possible_words
+
     @abstractmethod
     def guess(self, info: List[Letter]) -> str:
+        "Makes a guess"
+        pass
+
+    @abstractmethod
+    def rank_guesses(self, info: List[Letter]) -> pd.DataFrame:
+        "Ranks all possible words."
         pass
 
 
 class ManualAlgorithm(WordleAlgorithm):
     def __init__(self, possible_words: pd.DataFrame) -> None:
-        super().__init__()
-        self.possible_words = possible_words
+        super().__init__(possible_words)
         self.print_instruction()
 
     def guess(self, info: List[Letter]) -> str:
         return input().strip().lower()
 
+    def rank_guesses(self, info: List[Letter]) -> pd.DataFrame:
+        return filter_impossible_words(self.possible_words, info)
+
     def print_instruction(self):
-        wrong_letter = RejectedLetter("а")
-        correct_letter_wrong_position = AcceptedLetterWrongPosition("б")
-        correct_letter_correct_position = AcceptedLetterCorrectPosition("в")
-        print("На каждом ходу вы совершаете догадку, вводя слово из 5 букв.")
-        print("В ответ вы получаете слово закодированную цветом информацию:")
-        print(f"{str(wrong_letter)} - не угадана буква;", end=", ")
-        print(
-            f"{str(correct_letter_wrong_position)} - угадана буква, но не позиция;",
-            end=", ",
+        with open("./player_instruction.txt") as f:
+            instruction = f.read()
+        instruction = Template(instruction).substitute(
+            {
+                "a": RejectedLetter("а"),
+                "b": AcceptedLetterWrongPosition("б"),
+                "c": AcceptedLetterCorrectPosition("в"),
+            }
         )
-        print(
-            f"{correct_letter_correct_position} - угадана буква и позиция.",
-        )
-        input("Нажмите Enter, чтобы начать!")
+        print(instruction)
+        input("Press Enter to start!")
