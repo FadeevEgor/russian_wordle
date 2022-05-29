@@ -49,6 +49,7 @@ class CuttingAlgorithm(WordleAlgorithm):
     on average number words left, but following statistics can be specified: max,
     mode and median.
     """
+    best_first_guess = "норка" 
 
     def __init__(self, possible_words: pd.DataFrame, stat: str = "mean") -> None:
         super().__init__(possible_words)
@@ -57,19 +58,19 @@ class CuttingAlgorithm(WordleAlgorithm):
     def rank_guesses(self, info: List[Letter]) -> pd.DataFrame:
         "Ranks all possible guesses based on statistic chosen"
         self.possible_words = filter_impossible_words(self.possible_words, info)
-        if len(self.possible_words) < 1000:
+        if len(self.possible_words) < 100000:
             print(len(self.possible_words))
             cuts_estimation = self.estimate_cuts(info)
             return cuts_estimation.sort_values(self.stat)
-        return pd.DataFrame({"word": ["окрас"]})
+        return pd.DataFrame({"word": [CuttingAlgorithm.best_first_guess]})
 
     def guess(self, info: List[Letter]) -> str:
         "Returns the most prominent word based on statistic chosen"
         self.possible_words = filter_impossible_words(self.possible_words, info)
-        if len(self.possible_words) < 1000:
+        if len(self.possible_words) < 100000:
             cuts_estimation = self.estimate_cuts(info)
             return cuts_estimation.idxmin()[self.stat]
-        return "окрас"
+        return CuttingAlgorithm.best_first_guess
 
     def estimate_cuts(self, info: List[Letter]) -> pd.DataFrame:
         "For each word computes statistics of expected words left"
@@ -99,9 +100,9 @@ def cut_size(
 
 def main():
     args = parse_args()
-    words_to_show: int = args.t
+    words_to_show: int = args.n
     stat = args.stat
-    words_path: str = args.words
+    words_path: str = args.t
 
     words = load_possible_words(words_path)
     guesser = CuttingAlgorithm(words, stat)
