@@ -50,6 +50,7 @@ class CuttingAlgorithm(WordleAlgorithm):
     mode and median.
     """
     best_first_guess = "норка" 
+    words_limit = 200
 
     def __init__(self, possible_words: pd.DataFrame, stat: str = "mean") -> None:
         super().__init__(possible_words)
@@ -58,7 +59,7 @@ class CuttingAlgorithm(WordleAlgorithm):
     def rank_guesses(self, info: List[Letter]) -> pd.DataFrame:
         "Ranks all possible guesses based on statistic chosen"
         self.possible_words = filter_impossible_words(self.possible_words, info)
-        if len(self.possible_words) < 100000:
+        if len(self.possible_words) < CuttingAlgorithm.words_limit:
             print(len(self.possible_words))
             cuts_estimation = self.estimate_cuts(info)
             return cuts_estimation.sort_values(self.stat)
@@ -67,7 +68,7 @@ class CuttingAlgorithm(WordleAlgorithm):
     def guess(self, info: List[Letter]) -> str:
         "Returns the most prominent word based on statistic chosen"
         self.possible_words = filter_impossible_words(self.possible_words, info)
-        if len(self.possible_words) < 100000:
+        if len(self.possible_words) < CuttingAlgorithm.words_limit:
             cuts_estimation = self.estimate_cuts(info)
             return cuts_estimation.idxmin()[self.stat]
         return CuttingAlgorithm.best_first_guess
